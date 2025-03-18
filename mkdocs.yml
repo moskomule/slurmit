@@ -1,9 +1,9 @@
-site_name: {repo_name}
+site_name: slurmit
 site_description: ...
-site_author: {owner_name}
-site_url: https://{owner_name}.github.io/{repo_name}
-repo_name: {owner_name}/{repo_name}
-repo_url: https://github.com/{owner_name}/{repo_name}
+site_author: moskomule
+site_url: https://moskomule.github.io/slurmit
+repo_name: moskomule/slurmit
+repo_url: https://github.com/moskomule/slurmit
 edit_uri: blob/main/docs
 
 theme:
