@@ -5,6 +5,15 @@
 ![pytest](https://github.com/moskomule/slurmit/workflows/pytest/badge.svg)
 [![document](https://img.shields.io/static/v1?label=doc&message=slurmit&color=blue)](https://moskomule.github.io/slurmit)
 
+A minimalistic reimplementation of submitit for Slurm.
+
+## Features
+
+- Submit Python functions to SLURM
+- Configure SLURM job parameters through templates
+- Handle SLURM and runtime errors
+- Retrieve job results
+
 ## Installation
 
 ```
@@ -41,8 +50,9 @@ def add(x, y):
     return x + y
 
 
-ex = SlurmExecutor(".", "template.sh",
-                   dict(partition="ours", num_gpu=1))
+ex = SlurmExecutor("slurm_outputs",
+                   "template.sh",
+                   dict(partition="main", num_gpu=1))
 job = ex.submit(add, 1, y=2)
 print(job.result())  # 3
 ```
