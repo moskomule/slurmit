@@ -1,5 +1,6 @@
 import os
 import pathlib
+import subprocess
 import tempfile
 from unittest import mock
 
@@ -15,27 +16,35 @@ def mock_slurm_commands():
     with mock.patch('subprocess.run') as mock_run:
         # Configure mock to return appropriate responses for different commands
         def side_effect(*args, **kwargs):
-            command = args[0][0] if args and isinstance(args[0], list) else None
+            # Default mock response
+            result = mock.MagicMock()
+            result.stdout = ""
+
+            # Check if args is a list and has at least one element
+            if not args or not isinstance(args[0], list) or not args[0]:
+                return result
+
+            command = args[0][0]
 
             # Mock sbatch version check
-            if command == 'sbatch' and '--version' in args[0]:
-                result = mock.MagicMock()
+            if command == 'sbatch' and len(args[0]) > 1 and args[0][1] == '--version':
                 result.stdout = "slurm 23.02.0"
                 return result
 
             # Mock job submission
-            elif command == 'sbatch' and '--version' not in args[0]:
-                result = mock.MagicMock()
+            elif command == 'sbatch' and (len(args[0]) == 1 or args[0][1] != '--version'):
                 result.stdout = "Submitted batch job 12345"
                 return result
 
             # Mock job status check
             elif command == 'sacct':
-                result = mock.MagicMock()
                 result.stdout = "COMPLETED\n"
                 return result
 
-            return mock.MagicMock()
+            else:
+                print(command)
+
+            return result
 
         mock_run.side_effect = side_effect
         yield mock_run
@@ -79,7 +88,7 @@ def test_job_submission(temp_executor):
     # Check job properties
     assert job.id == 12345, "Job ID should match mock value"
     # Check that job files were created
-    assert (temp_executor.root / f"{job.file_prefix}.sh").exists()
+    assert (temp_executor.root / f"{job.file_prefix}.slurm").exists()
     assert (temp_executor.root / f"{job.file_prefix}.py").exists()
     assert (temp_executor.root / f"{job.file_prefix}_function.pkl").exists()
 
@@ -114,27 +123,46 @@ def test_job_status_check():
 
 def test_job_result_success():
     """Test successful job result retrieval."""
-    # Create temporary directory
+
     with tempfile.TemporaryDirectory() as temp_dir:
-        # Create mock executor
-        executor = mock.MagicMock()
-        executor.root = pathlib.Path(temp_dir)
-        executor.cleanup = False
+        template_path = os.path.join(temp_dir, "template.sh")
+        with open(template_path, 'w') as f:
+            f.write("#!/bin/bash\n"
+                    "#SBATCH --nodes={nodes}\n"
+                    "#SBATCH --partition={partition}\n")
 
-        # Create job
-        job = Job(id=12345, status=JobStatus.PENDING, root=executor.root, file_prefix="test_job")
+        with mock.patch.object(SlurmExecutor, "_check_slurm_available", return_value=None):
+            # because there's no sbatch
+            executor = SlurmExecutor(root=temp_dir,
+                                     template=template_path,
+                                     slurm_config={"nodes": 1, "partition": "test"})
 
-        # Create mock result file
         result_value = 42
-        result_path = executor.root / f"{job.file_prefix}_result.pkl"
-        with open(result_path, 'wb') as f:
-            cloudpickle.dump(result_value, f)
+        with mock.patch('subprocess.run') as mock_run:
+            def side_effect(*args, **kwargs):
+                result = mock.MagicMock()
+                result.stdout = "Submitted batch job 12345"
+                return result
 
-        # Get result
-        assert job.result() == result_value
+            mock_run.side_effect = side_effect
+            # create and run a python script and raise an error because sbatch is not found
+            job = executor.submit(lambda: result_value)
+        subprocess.run(["python", str(job.root / f"{job.file_prefix}.py")], check=True)
+        print(f">>>{list(job.root.iterdir())}")
+
+        with mock.patch('subprocess.run') as mock_run:
+            def side_effect(*args, **kwargs):
+                result = mock.MagicMock()
+                result.stdout = "COMPLETED\n"
+                return result
+
+            mock_run.side_effect = side_effect
+
+            # loaded from pickle
+            assert job.result() == result_value
 
 
-def test_job_result_failure():
+def test_job_result_failure(mock_slurm_commands):
     """Test handling of failed job."""
     # Create temporary directory
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -144,7 +172,7 @@ def test_job_result_failure():
         executor.cleanup = False
 
         # Create job with FAILED status
-        job = Job(id=12345, status=JobStatus.PENDING, root=executor.root, file_prefix="test_job")
+        job = Job(id=12345, status=JobStatus.FAILED, root=executor.root, file_prefix="test_job")
 
         # Create mock error file
         error_path = executor.root / f"{job.file_prefix}_result.pkl.error"
@@ -158,28 +186,6 @@ def test_job_result_failure():
         error_str = str(excinfo.value)
         assert "Job 12345 failed with status" in error_str
         assert "Test error message" in error_str
-
-
-def test_end_to_end_execution(temp_executor):
-    """Test end-to-end job execution flow with mocks."""
-
-    # Define test function
-    def multiply(x, y):
-        return x * y
-
-    # Submit job
-    job = temp_executor.submit(multiply, 6, 7)
-
-    # Mock result file creation (normally done by the SLURM job)
-    result_path = temp_executor.root / f"{job.file_prefix}_result.pkl"
-    with open(result_path, 'wb') as f:
-        cloudpickle.dump(42, f)
-
-    # Mock get_status to return COMPLETED
-    with mock.patch.object(job, 'get_status', return_value=JobStatus.COMPLETED):
-        # Get result
-        result = job.result()
-        assert result == 42
 
 
 def test_cleanup_files(temp_executor):
