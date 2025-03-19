@@ -4,6 +4,7 @@ import logging
 import pathlib
 import re
 import subprocess
+import sys
 import time
 import uuid
 from string import Template
@@ -143,7 +144,9 @@ class SlurmExecutor:
                  root: str | pathlib.Path,
                  template: str | pathlib.Path,
                  slurm_config: dict[str, Any],
-                 cleanup: bool = True):
+                 cleanup: bool = True,
+                 submit_command: str = None,
+                 pyton_path: str | pathlib.Path = None):
         """
         Initialize a SLURM executor.
 
@@ -152,6 +155,8 @@ class SlurmExecutor:
             template: Path to the SLURM job template file.
             slurm_config: Configuration parameters for SLURM jobs.
             cleanup: Whether to clean up job files after completion.
+            submit_command: If the submission is not simply `sbatch job.sh`, specify it as, e.g., "sbatch -l 1"
+            pyton_path: Path to Python. If None, Python to run slurmit will be used.
         """
 
         self.root = pathlib.Path(root)
@@ -172,6 +177,9 @@ class SlurmExecutor:
         # Load template content
         with open(template_path, 'r') as f:
             self.template_content = f.read()
+
+        self.submit_command = ["sbatch"] or submit_command.split(" ")
+        self.python_path = sys.executable if pyton_path is None else pathlib.Path(pyton_path).resolve()
 
     @staticmethod
     def _check_slurm_available():
@@ -252,7 +260,7 @@ except Exception as e:
         slurm_script = template.safe_substitute(**self.slurm_config)
 
         # Add command to execute the Python script
-        slurm_script += f"python {python_script_path}\n"
+        slurm_script += f"{self.python_path} {python_script_path}\n"
 
         # Write SLURM job script to file
         with open(script_path, 'w') as f:
@@ -260,7 +268,7 @@ except Exception as e:
 
         # Submit job to SLURM
         try:
-            result = subprocess.run(["sbatch", str(script_path)],
+            result = subprocess.run(self.submit_command + [str(script_path)],
                                     check=True,
                                     capture_output=True,
                                     text=True
