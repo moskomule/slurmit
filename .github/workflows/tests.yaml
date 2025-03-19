@@ -5,9 +5,6 @@ on: [ "push" ]
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: [ '3.11', '3.12', '3.13' ]
     if: "!(contains(github.repository, 'template') || contains(github.event.head_commit.message, 'initial commit'))"
 
     steps:
@@ -23,8 +20,8 @@ jobs:
       - name: setup python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
-
+          python-version: '3.11'
+          
       - name: test
         run: |
           pip install hatch
