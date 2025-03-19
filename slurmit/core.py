@@ -93,9 +93,10 @@ class Job(Generic[R]):
             RuntimeError: If the job failed, was cancelled, or timed out.
         """
         # Wait for the job to complete
-        while self.status in (JobStatus.PENDING, JobStatus.RUNNING):
+        not_finished_statuses = (JobStatus.PENDING, JobStatus.RUNNING, JobStatus.UNKNOWN)
+        while self.status in not_finished_statuses:
             self.status = self.get_status()
-            if self.status in (JobStatus.PENDING, JobStatus.RUNNING):
+            if self.status in not_finished_statuses:
                 time.sleep(60)  # Check every 60 seconds
 
         try:
