@@ -16,3 +16,33 @@ or
 ```
 pip install -U -e .
 ```
+
+## Usage
+
+Prepare template
+
+```shell
+#!/bin/bash
+
+#SBATCH --nodes=1
+#SBATCH --partition={partition}
+#SBATCH --gres=gpu:{num_gpu}
+
+module load cuda
+```
+
+Run the following script
+
+```python
+from slurmit import SlurmExecutor
+
+
+def add(x, y):
+    return x + y
+
+
+ex = SlurmExecutor(".", "template.sh",
+                   dict(partition="ours", num_gpu=1))
+job = ex.submit(add, 1, y=2)
+print(job.result())  # 3
+```

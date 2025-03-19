@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 license = "MIT"
 keywords = []
 authors = [
-    { name = "moskomule", email = "moskomule@users.noreply.github.com" },
+    { name = "Ryuichiro Hataya", email = "moskomule@users.noreply.github.com" },
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -21,7 +21,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
 ]
 dependencies = [
-    "rich"
+    "cloudpickle",
 ]
 dynamic = ["version"]
 
